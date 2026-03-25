@@ -3,6 +3,7 @@ import multer from 'multer';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import exifr from 'exifr';
 import Evidence from '../models/Evidence.js';
 import { authMiddleware } from './auth.js';
 import { logAudit } from './cases.js';
@@ -24,6 +25,95 @@ const storage = multer.diskStorage({
   }
 });
 const upload = multer({ storage });
+
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+const generatorKeywords = [
+  'gemini',
+  'dall-e',
+  'dalle',
+  'midjourney',
+  'stable diffusion',
+  'stable-diffusion',
+  'sdxl',
+  'adobe firefly',
+  'firefly',
+  'ai generated',
+  'generated',
+  'synthetic'
+];
+
+const analyzeImageAIGeneration = async ({ filePath, mimeType, originalName }) => {
+  if (!mimeType?.startsWith('image/')) {
+    return {
+      verdict: 'not_applicable',
+      confidence: 0,
+      score: 0,
+      reasons: ['AI image detection is only run for image files.']
+    };
+  }
+
+  let metadata = {};
+  try {
+    metadata = (await exifr.parse(filePath, true)) || {};
+  } catch {
+    metadata = {};
+  }
+
+  let score = 0;
+  const reasons = [];
+  const lowerName = (originalName || '').toLowerCase();
+  const software = String(metadata.Software || metadata.ProcessingSoftware || '').toLowerCase();
+
+  if (generatorKeywords.some((k) => lowerName.includes(k))) {
+    score += 25;
+    reasons.push('Filename includes terms often associated with synthetic image generation.');
+  }
+
+  if (generatorKeywords.some((k) => software.includes(k))) {
+    score += 45;
+    reasons.push('Image software metadata references known AI generation tooling.');
+  }
+
+  const hasCameraInfo = Boolean(metadata.Make || metadata.Model);
+  const hasCaptureTimestamp = Boolean(metadata.DateTimeOriginal || metadata.CreateDate);
+  if (!hasCameraInfo && !hasCaptureTimestamp) {
+    score += 15;
+    reasons.push('No camera model or capture timestamp metadata was found.');
+  }
+
+  const width = Number(metadata.ExifImageWidth || metadata.ImageWidth || metadata.width || 0);
+  const height = Number(metadata.ExifImageHeight || metadata.ImageHeight || metadata.height || 0);
+  if (width >= 512 && height >= 512 && width % 64 === 0 && height % 64 === 0) {
+    score += 10;
+    reasons.push('Image dimensions align with common AI model generation block sizes.');
+  }
+
+  const likelyCameraSoftware = /(iphone|samsung|google camera|canon|nikon|sony|xiaomi|oppo|vivo)/i.test(software);
+  if (likelyCameraSoftware && hasCameraInfo) {
+    score -= 30;
+    reasons.push('Metadata resembles camera-native capture software and hardware.');
+  }
+
+  score = clamp(score, 0, 100);
+
+  let verdict = 'inconclusive';
+  if (score >= 60) verdict = 'likely_ai_generated';
+  if (score <= 25) verdict = 'likely_camera_capture';
+
+  const confidence = clamp(45 + Math.abs(score - 45), 45, 95);
+
+  if (reasons.length === 0) {
+    reasons.push('No strong metadata indicators were detected.');
+  }
+
+  return {
+    verdict,
+    confidence,
+    score,
+    reasons
+  };
+};
 
 // Helper function to calculate SHA-256 hash of a file
 const calculateFileHash = (filePath) => {
@@ -47,13 +137,22 @@ router.post('/upload', authMiddleware, upload.single('evidenceFile'), async (req
     const fileHash = await calculateFileHash(req.file.path);
 
     // 2. Simulate AI Analysis Breakdown
+    const aiImageDetection = await analyzeImageAIGeneration({
+      filePath: req.file.path,
+      mimeType: req.file.mimetype,
+      originalName: req.file.originalname
+    });
+
     const simulatedAI = {
       overallConfidence: Math.floor(Math.random() * 40) + 60, // 60-100%
       faceConsistency: Math.floor(Math.random() * 40) + 60,
       audioVideoSync: Math.floor(Math.random() * 40) + 60,
       compressionArtifacts: Math.floor(Math.random() * 40) + 60,
       metadataAnomalies: Math.floor(Math.random() * 40) + 60,
-      status: 'completed'
+      status: 'completed',
+      aiGeneratedVerdict: aiImageDetection.verdict,
+      aiGeneratedConfidence: aiImageDetection.confidence,
+      aiGeneratedReasons: aiImageDetection.reasons
     };
 
     // 3. Save to Database
@@ -85,6 +184,32 @@ router.post('/upload', authMiddleware, upload.single('evidenceFile'), async (req
   } catch (error) {
     if (req.file) fs.unlinkSync(req.file.path); // Cleanup on fail
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Lightweight endpoint for checking if an uploaded image is AI-generated
+router.post('/detect-ai', upload.single('evidenceFile'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    const detection = await analyzeImageAIGeneration({
+      filePath: req.file.path,
+      mimeType: req.file.mimetype,
+      originalName: req.file.originalname
+    });
+
+    res.json({
+      fileName: req.file.originalname,
+      mimeType: req.file.mimetype,
+      ...detection,
+      disclaimer: 'This is a heuristic metadata-based estimate, not a courtroom-grade classifier.'
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  } finally {
+    if (req.file?.path && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
   }
 });
 

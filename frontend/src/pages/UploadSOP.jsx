@@ -4,6 +4,9 @@ import { UploadCloud, CheckCircle, ShieldAlert, FileText, ArrowRight } from 'luc
 const UploadSOP = () => {
   const [step, setStep] = useState(1);
   const [file, setFile] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [aiDetection, setAiDetection] = useState(null);
+  const [submitError, setSubmitError] = useState('');
   const [checklist, setChecklist] = useState({
     deviceSeized: false,
     witnessPresent: false,
@@ -25,6 +28,34 @@ const UploadSOP = () => {
 
   const handleNext = () => setStep(s => Math.min(s + 1, 3));
   const handleBack = () => setStep(s => Math.max(s - 1, 1));
+
+  const handleSubmitForDetection = async () => {
+    if (!file) return;
+
+    setIsSubmitting(true);
+    setSubmitError('');
+
+    try {
+      const formData = new FormData();
+      formData.append('evidenceFile', file);
+
+      const res = await fetch('http://localhost:5000/api/evidence/detect-ai', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Detection failed');
+      }
+
+      setAiDetection(data);
+    } catch (err) {
+      setSubmitError(err.message || 'Unable to analyze file');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -155,11 +186,33 @@ const UploadSOP = () => {
 
             <div className="flex justify-between pt-4">
               <button onClick={handleBack} className="btn-outline">Back</button>
-              <button onClick={() => alert('Sending to backend to generate hash and AI scores...')} className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white font-medium py-3 px-8 rounded-lg shadow-lg shadow-emerald-500/20 transition-all active:scale-95 flex items-center space-x-2">
+              <button onClick={handleSubmitForDetection} disabled={isSubmitting || !file} className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-3 px-8 rounded-lg shadow-lg shadow-emerald-500/20 transition-all active:scale-95 flex items-center space-x-2">
                 <CheckCircle className="w-5 h-5" />
-                <span>Sign & Submit Evidence</span>
+                <span>{isSubmitting ? 'Analyzing...' : 'Sign & Submit Evidence'}</span>
               </button>
             </div>
+
+            {submitError && (
+              <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-4 text-sm text-rose-200">
+                {submitError}
+              </div>
+            )}
+
+            {aiDetection && (
+              <div className="bg-dark-900/60 p-6 rounded-xl border border-dark-700/50 space-y-3">
+                <p className="text-slate-400 text-sm">AI Generation Assessment</p>
+                <p className="text-lg font-semibold text-white">
+                  Verdict: <span className="text-neon-blue">{aiDetection.verdict.replaceAll('_', ' ')}</span>
+                </p>
+                <p className="text-sm text-slate-300">Confidence: {aiDetection.confidence}%</p>
+                <ul className="text-sm text-slate-300 list-disc pl-5 space-y-1">
+                  {aiDetection.reasons?.map((reason) => (
+                    <li key={reason}>{reason}</li>
+                  ))}
+                </ul>
+                <p className="text-xs text-slate-500">{aiDetection.disclaimer}</p>
+              </div>
+            )}
           </div>
         )}
 

@@ -22,6 +22,9 @@ const evidenceSchema = new mongoose.Schema({
     audioVideoSync: { type: Number },
     compressionArtifacts: { type: Number },
     metadataAnomalies: { type: Number },
+    aiGeneratedVerdict: { type: String, enum: ['likely_ai_generated', 'inconclusive', 'likely_camera_capture', 'not_applicable'], default: 'inconclusive' },
+    aiGeneratedConfidence: { type: Number },
+    aiGeneratedReasons: [{ type: String }],
     status: { type: String, enum: ['pending', 'completed', 'failed'], default: 'pending' }
   }
 }, { timestamps: true });
