@@ -1,0 +1,6 @@
+{
+  "class_to_idx": {
+    "FAKE": 0,
+    "REAL": 1
+  }
+}

@@ -8,15 +8,15 @@ export default {
     extend: {
       colors: {
         dark: {
-          900: '#0a0a0f',
-          800: '#13131a',
-          700: '#1f1f2e',
-          600: '#2d2d3f',
+          900: '#060b14',
+          800: '#0f172a',
+          700: '#1e293b',
+          600: '#334155',
         },
         neon: {
-          blue: '#3b82f6',
-          purple: '#8b5cf6',
-          cyan: '#06b6d4',
+          blue: '#0ea5e9',
+          purple: '#22c55e',
+          cyan: '#14b8a6',
         }
       }
     },

@@ -25,6 +25,11 @@ const evidenceSchema = new mongoose.Schema({
     aiGeneratedVerdict: { type: String, enum: ['likely_ai_generated', 'inconclusive', 'likely_camera_capture', 'not_applicable'], default: 'inconclusive' },
     aiGeneratedConfidence: { type: Number },
     aiGeneratedReasons: [{ type: String }],
+    ai_probability: { type: Number },
+    verdict: { type: String },
+    confidence: { type: Number },
+    sub_scores: { type: mongoose.Schema.Types.Mixed },
+    method: { type: String, enum: ['ML_MODEL', 'HEURISTIC_FALLBACK'] },
     status: { type: String, enum: ['pending', 'completed', 'failed'], default: 'pending' }
   }
 }, { timestamps: true });

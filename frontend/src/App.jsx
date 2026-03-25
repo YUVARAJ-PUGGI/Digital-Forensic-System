@@ -3,6 +3,7 @@ import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import CaseManager from './pages/CaseManager';
 import UploadSOP from './pages/UploadSOP';
+import VerificationLog from './pages/VerificationLog';
 
 function App() {
   return (
@@ -12,7 +13,7 @@ function App() {
           <Route index element={<Dashboard />} />
           <Route path="cases" element={<CaseManager />} />
           <Route path="upload" element={<UploadSOP />} />
-          <Route path="audit" element={<div className="p-8 text-xl">Audit Logs & Chain of Custody (Coming Soon...)</div>} />
+          <Route path="audit" element={<VerificationLog />} />
         </Route>
       </Routes>
     </Router>
