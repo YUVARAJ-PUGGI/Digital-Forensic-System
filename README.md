@@ -1,6 +1,4 @@
-# Digital Forensic Analysis Service
-
-Production-style FastAPI service for hybrid forensic analysis of digital evidence.
+# AI-POWERED DIGITAL MEDIA AUTHENTICATION AND VERIFICATION SYSTEM
 
 ## Project Overview 
 
