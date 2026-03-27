@@ -143,14 +143,24 @@ def run_inference(image_path: str) -> dict:
     }
 
     ai_probability = _clip01(
-        0.70 * sub_scores["efficientnet_score"]
-        + 0.15 * sub_scores["frequency_artifacts"]
-        + 0.15 * sub_scores["noise_pattern"]
+        0.50 * sub_scores["efficientnet_score"]
+        + 0.20 * sub_scores["frequency_artifacts"]
+        + 0.30 * sub_scores["noise_pattern"]
     )
 
-    if ai_probability > 0.55:
+    # Contradiction override (HIGHEST PRIORITY)
+    if sub_scores["efficientnet_score"] > 0.95 and sub_scores["noise_pattern"] < 0.15:
+        confidence = _clip01(abs(ai_probability - 0.45) * 2.2)
+        return {
+            "ai_probability": round(ai_probability, 6),
+            "verdict": "INCONCLUSIVE",
+            "confidence": round(confidence, 6),
+            "sub_scores": {k: round(v, 6) for k, v in sub_scores.items()},
+        }
+
+    if ai_probability > 0.70:
         verdict = "AI_GENERATED"
-    elif ai_probability < 0.35:
+    elif ai_probability < 0.40:
         verdict = "AUTHENTIC"
     else:
         verdict = "INCONCLUSIVE"
